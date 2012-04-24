@@ -1,0 +1,126 @@
+<html>
+	<head>
+		<script src="Matrix.js"></script>
+		<script src="Renderer.js"></script>
+		<script>
+			var increment = {x:0,y:0,z:0};
+			function onLoad() {
+				canvas = document.getElementById("mycanvas");
+				R = new Renderer(canvas);
+				//R.addTexture(document.getElementById("zebra"));
+				interval = window.setInterval(drawFunc, 5);
+				canvas.addEventListener('mousemove',canvasMouseMove);
+				window.addEventListener('keydown',onKeyDown);
+			}
+
+			function findPos(obj) {
+				var curleft = 0, curtop = 0;
+				if(obj.offsetParent) {
+					do {
+						curleft += obj.offsetLeft;
+						curtop += obj.offsetTop;
+					} while (obj = obj.offsetParent);
+					return {
+						x : curleft,
+						y : curtop
+					};
+				}
+				return undefined;
+			}
+			
+			function canvasMouseMove(evt){
+				var coord = document.getElementById("coordinate");
+				var canvasPos = findPos(R.canvas);
+				coord.value = "Position:" + (evt.pageX-canvasPos.x) + "," + (evt.pageY-canvasPos.y);
+			}
+			
+			function onKeyDown(evt){
+				if(evt.keyCode == 37){
+					increment.y+=.01;
+				}
+				else if (evt.keyCode == 39){
+					increment.y-=.01;
+				}
+				else if (evt.keyCode == 38){
+					increment.x+=.01;
+				}
+				else if (evt.keyCode == 40){
+					increment.x-=.01;
+				}
+				evt.stopPropagation();
+			}
+
+			var drawFunc = (function() {
+				var timer = {x:0,y:0,z:0};
+				var draw = function() {
+					R.modelViewMat.loadIdentity();
+					R.modelViewMat.rotate(timer.x,1,0,0);
+					R.modelViewMat.rotate(timer.y,0,1,0);
+					R.modelViewMat.rotate(timer.z,0,0,1);
+					
+					R.modelViewMat.translate(0,0,-1.5);
+					R.beginRender();
+					var theta1 = 0;
+					var theta2 =  (2 * Math.PI) / 3;
+					var theta3 = (4 * Math.PI) / 3;
+					var p1 = {
+						x : .25 * Math.cos(theta1),
+						y : -.2,
+						z : (.25 * Math.sin(theta1))
+					};
+					var p2 = {
+						x : .25 * Math.cos(theta2),
+						y : -.2,
+						z :  (.25 * Math.sin(theta2))
+					};
+					var p3 = {
+						x : .25 * Math.cos(theta3),
+						y : -.2,
+						z : (.25 * Math.sin(theta3))
+					};
+					p1.r = 255;
+					p2.g = 255;
+					p3.b = 255;
+
+					var p4 = {
+						x : 0,
+						y : .2,
+						z : 0
+					};
+					
+					p1.tx = 0;
+					p1.ty = 0;
+					p2.tx = 0;
+					p2.ty = 255;
+					p3.tx = 255;
+					p3.ty = 255;
+					p3.tx = 255;
+					p3.ty = 0;
+					
+					p1.g = p1.b = p2.r = p2.b = p3.r = p3.g = p4.b = 0;
+
+					p4.r = p4.g = 255;
+					R.queueTriangle(p1, p2, p3);
+					R.queueTriangle(p1, p4, p2);
+					R.queueTriangle(p1, p4, p3);
+					R.queueTriangle(p4, p2, p3);
+					timer.x += increment.x;
+					timer.y += increment.y;
+					timer.z += increment.z;
+					R.endRender();
+				}
+				return draw;
+			})();
+			
+
+			window.addEventListener('load', onLoad);
+
+		</script>
+	</head>
+	<body>
+		<div>
+		<canvas style="border:1px solid green" id="mycanvas" width="500" height="500"></canvas>
+		<input type="text" id="coordinate" style="width:160px;"></input>
+		</div>
+	</body>
+</html>
