@@ -46,15 +46,15 @@ Mat4.prototype.matMultBy= function(otherMat4){
 }
 
 
-
-Mat4.prototype.multVec = function(vec4){
-	if(vec4.x !== undefined){
-		vec4 = [vec4.x,vec4.y,vec4.z,vec4.w === undefined? 1:vec4.w];
-	}
-	return {x:vec4Dot(this.rowAt(0),vec4)
-			,y:vec4Dot(this.rowAt(1),vec4)
-			,z:vec4Dot(this.rowAt(2),vec4)
-			,w:vec4Dot(this.rowAt(3),vec4)};
+//in place transformation of vec
+Mat4.prototype.multVector = function(vector){
+	
+	var vecRowForm = [vector.x,vector.y,vector.z,vector.w === undefined? 1:vector.w];
+	
+	vector.x = vec4Dot(this.rowAt(0),vecRowForm);
+	vector.y = vec4Dot(this.rowAt(1),vecRowForm);
+	vector.z = vec4Dot(this.rowAt(2),vecRowForm);
+	vector.w = vec4Dot(this.rowAt(3),vecRowForm);
 }
 
 Mat4.prototype.loadFrustum = function(near,far,left,right,bottom,top){
@@ -111,6 +111,12 @@ Mat4.prototype.translate = function(x,y,z){
 var vec4Dot = function(vec1,vec2){
 	return vec1[0]*vec2[0] + vec1[1]*vec2[1]+vec1[2]*vec2[2]+vec1[3]*vec2[3];
 }
+
+Vec3 = {
+	Copy: function(src){
+		return {x:src.x,y:src.y,z:src.z};
+	}
+};
 
 
 
