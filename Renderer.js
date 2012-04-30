@@ -5,18 +5,22 @@ function Renderer(canvas){
 	this.blankImageData = this.ctx.createImageData(canvas.width,canvas.height);
 	this.depthMap = new Uint32Array(canvas.width * canvas.height);
 	this.maxDepthMap = new Uint32Array(canvas.width * canvas.height);
+	
+	var maxInt = Math.pow(2,32)-1;
 	for(var i = 0; i < this.maxDepthMap.length; i++) {
-		this.maxDepthMap[i] = 0;
+		this.maxDepthMap[i] = maxInt;
 	}
 	//blank image data considered to be fully opaque white
 	for(var i = 0; i<this.blankImageData.data.length; i++){
 		this.blankImageData.data[i] = this.blankImageData.data[i+1] = this.blankImageData.data[i+2] = 0;
 		this.blankImageData.data[i+3] = 255;
 	}
-	this.viewerZ = 0;
-	this.textures = [];
 	
-	//set reasonable defaults for our shaders and matrices
+	this.restoreDefaults();
+}
+
+//set reasonable defaults for the renderer to use with its shaders and matrices
+Renderer.prototype.restoreDefaults = function(){
 	this.modelViewMat = new Mat4();
 	this.modelViewMat.loadIdentity();
 	this.projectionMat = new Mat4();
@@ -24,33 +28,6 @@ function Renderer(canvas){
 	
 	this.setFragmentShader(Renderer.defaultFragmentShader);
 	this.setVertexShader(Renderer.defaultVertexShader);
-}
-
-Renderer.prototype.worldToScreen = function(pt){
-	//transform from model view coordinates to eye coordinates
-	var transPoint = this.modelViewMat.multVec(pt);
-	//transform from camera(eye) to clip space with projection matrix
-	var transPoint = this.projectionMat.multVec(transPoint);
-	//transform from clip space to NDC by dividing by w
-	//NDC has -1 to 1 coordinates for x,y,and z
-	transPoint.x/=transPoint.w;
-	transPoint.y/=transPoint.w;
-	transPoint.z/=transPoint.w;
-	//transform from NDC to window coordinates
-	transPoint.x = transPoint.x*this.canvas.width + this.canvas.width/2;
-	transPoint.y = this.canvas.height - (transPoint.y*this.canvas.height + this.canvas.height/2);
-	//take z from [-1,1] space to [0,2000] for greater depth fidelity on an integer basis
-	transPoint.z = (transPoint.z+1) * 2000; 
-	
-	//copy the parameters provided by the user
-	transPoint.r = pt.r;
-	transPoint.g = pt.g;
-	transPoint.b = pt.b;
-	transPoint.tx = pt.tx;
-	transPoint.ty = pt.ty;
-	
-	return transPoint;
-	
 }
 
 Renderer.defaultVertexShader = function(R,pt,uniform){
@@ -75,11 +52,12 @@ Renderer.prototype.setFragmentShader = function(shaderFunc){
 	this.fragmentShader = shaderFunc;
 }
 
+Renderer.prototype.setDefaultFragmentShader = function(){
+	this.fragmentShader = Renderer.defaultFragmentShader;
+}
 
-Renderer.prototype.clearImageData = function() {
-	//for(var i = 0; i < this.imageData.data.length; i++) {
-	//	this.imageData.data[i] = 0;
-	//}
+Renderer.prototype.setDefaultVertexShader = function(){
+	this.vertexShader = Renderer.defaultVertexShader;
 }
 
 Renderer.prototype.clearImageData = (function(){
@@ -98,24 +76,40 @@ Renderer.prototype.clearImageData = (function(){
 	}
 })();
 
+Renderer.prototype.clearColor = function(r,g,b){
+	var data = this.imageData.data;
+	for (var i = 0; i<=data.length; i+=4){
+		data[i] = r;
+		data[i+1] = g;
+		data[i+2] = b;
+		data[i+3] = 255;
+	}
+	this.clearDepthMap();
+}
+
 Renderer.prototype.clear = function(){
 	this.clearImageData();
 	//this.imageData.data.set(this.blankImageData.data,0,0);
-	this.depthMap.set(this.maxDepthMap,0);
+	this.clearDepthMap();
 }
 
+Renderer.prototype.clearDepthMap = function(){
+	this.depthMap.set(this.maxDepthMap,0);
+}
 
 
 Renderer.prototype.update = function(){
 	this.ctx.putImageData(this.imageData,0,0);
 }
 
-RenderModes = {Triangles:0,TriangleFan:1};
+RenderModes = {Triangles:0,TriangleFan:1,Quads:2};
 
 Renderer.prototype.drawElements = function(vertices,mode){
 	if(mode === undefined){
 		mode = RenderModes.Triangles;
 	}
+	//allow user to pass objects that are equal to each other
+	vertices = vertices.map(Utility.ShallowCopy);
 	//first transform each element with the vertex shader and normalize it's w value'
 	for(var i = 0; i<vertices.length; i++){
 		var vert = vertices[i];
@@ -133,13 +127,20 @@ Renderer.prototype.drawElements = function(vertices,mode){
 		vert.depth = (vert.z+1)*2000;
 		
 		//finally convert from NDC coordinates to window coordinates
-		vert.screenX = vert.x*this.canvas.width + this.canvas.width/2;
-		vert.screenY = this.canvas.height - (vert.y*this.canvas.height + this.canvas.height/2);
+		vert.screenX = vert.x*this.canvas.width/2 + this.canvas.width/2;
+		vert.screenY = this.canvas.height - (vert.y*this.canvas.height/2 + this.canvas.height/2);
 	}
 	//now rasterize the primitives based on the raster mode
 	if(mode == RenderModes.Triangles){
 		for(var i = 0; i<vertices.length; i+=3){
 			this.drawTriangle(vertices[i],vertices[i+1],vertices[i+2]);
+		}
+	}
+	else if (mode == RenderModes.Quads){
+		//treat vertices a,b,c,d as two triangles abc and cad
+		for(var i =0; i<vertices.length; i+=4){
+			this.drawTriangle(vertices[i],vertices[i+1],vertices[i+2]);
+			this.drawTriangle(vertices[i+2],vertices[i],vertices[i+3]);
 		}
 	}
 }
@@ -181,13 +182,12 @@ Renderer.prototype.drawTriangle = function(p1, p2, p3){
 	
 	for(var x = minX; x < maxX; x++) {
 		for(var y = minY; y < maxY; y++) {
-			
 			var b3 = 1 - b1 - b2;
 			if(b1 >= 0 && b2 >= 0 && b3 >= 0) {
 				var index = y * canvHeight * 4 + x * 4;
 				var depthIndex = y * canvWidth + x;
 				var depth = Math.floor(b1 * p1.depth + b2 * p2.depth + b3 * p3.depth);
-				if(depth > depthMap[depthIndex]) {
+				if(depth < depthMap[depthIndex]) {
 					for(var idx in interpolatedPoint){
 						interpolatedPoint[idx] = b1*p1[idx] + b2*p2[idx] + b3*p3[idx];
 					}
@@ -211,5 +211,4 @@ Renderer.prototype.drawTriangle = function(p1, p2, p3){
 		b1 += b1ChangeOnXInc;
 		b2 += b2ChangeOnXInc;
 	}
-	this.update();
 }
