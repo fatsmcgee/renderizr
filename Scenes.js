@@ -115,20 +115,71 @@ Scenes.simpleTriangle = {
 	}\n\
 	return draw;})()"
 }
-Scenes.simpleTexture = {
-	title:"Simple Texture",
-	description:"Simple example of a texture",
+Scenes.sphereTexture = {
+	title:"Textured earth",
+	description:"The earth is round. Images are not. Force them to be so against their will. ",
 	drawUpdate: "(function() {\n\
-	var newContext = document.createElement("canvas");\n\
+	var yRot = 0;\n\
+	var xRot = 0;\n\
+	function pointFromPolar(theta,phi,r){\n\
+		var y = r*Math.sin(phi);\n\
+		var x = r*Math.cos(phi)*Math.cos(theta);\n\
+		var z = r*Math.cos(phi)*Math.sin(theta);\n\
+		return {x:x,y:y,z:z,theta:theta,phi:phi};\n\
+	}\n\
+	function getSpherePoints(r,xDivs,yDivs){\n\
+		var bodyPts = [];\n\
+		for(var i = 1; i<yDivs-1; i++){\n\
+			var phi = -Math.PI/2 + (i*Math.PI)/yDivs;\n\
+			var nextPhi = phi + Math.PI/yDivs;\n\
+			for(var j = 0; j<xDivs; j++){\n\
+				var theta = (2*Math.PI*j)/xDivs;\n\
+				var nextTheta = theta + (2*Math.PI)/xDivs;\n\
+				bodyPts.push(pointFromPolar(theta,phi,r));\n\
+				bodyPts.push(pointFromPolar(theta,nextPhi,r));\n\
+				bodyPts.push(pointFromPolar(nextTheta,nextPhi,r));\n\
+				bodyPts.push(pointFromPolar(nextTheta,phi,r));\n\
+			}\n\
+		}\n\
+		//The body can be drawn in quads, but the caps require triangles\n\
+		var capPts = [];\n\
+		var capPhi = -Math.PI/2 + Math.PI/yDivs;\n\
+		for(var i = 0; i<xDivs;i++){\n\
+			var theta = (2*Math.PI*i)/xDivs;\n\
+			var nextTheta = theta + (2*Math.PI)/xDivs;\n\
+			capPts.push(pointFromPolar(theta,capPhi,r));\n\
+			capPts.push(pointFromPolar(nextTheta,capPhi,r));\n\
+			capPts.push(pointFromPolar(0,-Math.PI/2,r));\n\
+\n\
+			capPts.push(pointFromPolar(theta,-capPhi,r));\n\
+			capPts.push(pointFromPolar(nextTheta,-capPhi,r));\n\
+			capPts.push(pointFromPolar(0,Math.PI/2,r));\n\
+		}\n\
+		return {body:bodyPts,cap:capPts};\n\
+	}\n\
+	function drawSphere(spherePts){\n\
+		R.drawElements(spherePts.body,RenderModes.Quads);\n\
+		R.drawElements(spherePts.cap,RenderModes.Triangles);\n\
+	}\n\
+\n\
+	function fragShader(R,pt,uniform){\n\
+		pt.r = (pt.theta%1)*255;\n\
+		pt.g = (pt.phi%1)*255;\n\
+		pt.b = 0;\n\
+	}\n\
+	R.setFragmentShader(fragShader);\n\
+	var spherePts = getSpherePoints(.3,6,6);\n\
 	var draw = function(){\n\
+		yRot -= Number(KeysDown[KeyCodes.LEFT])*.05;\n\
+		yRot += Number(KeysDown[KeyCodes.RIGHT])*.05;\n\
+		xRot -= Number(KeysDown[KeyCodes.UP])*.05;\n\
+		xRot += Number(KeysDown[KeyCodes.DOWN])*.05;\n\
 		R.clearColor(0,255,255);\n\
-		var p1 = {x:-.5,y:-.5};\n\
-		var p2 = {x:-.5,y:.5};\n\
-		var p3 = {x:.5,y:.5};\n\
-		var p4 = {x:.5,y:-.5};\n\
-		p1.r = p2.r = p3.r = p4.r = 255;\n\
-		p1.z = p2.z = p3.z = p4.z = -1.5;\n\
-		R.drawElements([p1,p2,p3,p4],RenderModes.Quads);\n\
+		R.modelViewMat.loadIdentity();\n\
+		R.modelViewMat.rotate(yRot,0,1,0);\n\
+		R.modelViewMat.rotate(xRot,1,0,0);\n\
+		R.modelViewMat.translate(0,0,-1.5);\n\
+		drawSphere(spherePts);\n\
 		R.update();\n\
 	}\n\
 	return draw;})()"

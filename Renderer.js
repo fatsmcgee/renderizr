@@ -16,6 +16,8 @@ function Renderer(canvas){
 		this.blankImageData.data[i+3] = 255;
 	}
 	
+	this.matrixStack = [];
+	
 	this.restoreDefaults();
 }
 
@@ -28,6 +30,16 @@ Renderer.prototype.restoreDefaults = function(){
 	
 	this.setFragmentShader(Renderer.defaultFragmentShader);
 	this.setVertexShader(Renderer.defaultVertexShader);
+}
+
+Renderer.prototype.pushMatrices = function(){
+	var modeViewCopy = this.modelViewMat.copy();
+	var projectionCopy = this.projectionMat.copy();
+	this.matrixStack.push({modelView:modelViewCopy,projection:projectionCopy});
+}
+
+Renderer.prototype.popMatrices = function(){
+	
 }
 
 Renderer.defaultVertexShader = function(R,pt,uniform){
@@ -64,9 +76,11 @@ Renderer.prototype.clearImageData = (function(){
 	if( navigator.userAgent.toLowerCase().indexOf('chrome') > -1){
 		return function(){
 			var data = this.imageData.data;
-			for(var i = 0; i<data.length; i++){
+			var i = data.length-1;
+			do{
 				data[i] = 0;
 			}
+			while(i--);
 		};
 	}
 	else{
@@ -78,12 +92,15 @@ Renderer.prototype.clearImageData = (function(){
 
 Renderer.prototype.clearColor = function(r,g,b){
 	var data = this.imageData.data;
-	for (var i = 0; i<=data.length; i+=4){
-		data[i] = r;
-		data[i+1] = g;
-		data[i+2] = b;
-		data[i+3] = 255;
+	//This insane micro-optimization doubles the frame rate in chrome!!
+	var i = data.length;
+	do{
+		data[i-4] = r;
+		data[i-3] = g;
+		data[i-2] = b;
+		data[i-1] = 255;
 	}
+	while(i-=4);
 	this.clearDepthMap();
 }
 
@@ -172,16 +189,22 @@ Renderer.prototype.drawTriangle = function(p1, p2, p3){
 	//reduce changes in barycentric coordinates as x/y increments to constants
 	var b1Denominator = ((p2.screenY - p3.screenY) * (p1.screenX - p3.screenX) + (p3.screenX - p2.screenX) * (p1.screenY - p3.screenY));
 	var b2Denominator = ((p2.screenY - p3.screenY) * (p1.screenX - p3.screenX) + (p3.screenX - p2.screenX) * (p1.screenY - p3.screenY));
-	var b1 = ((p2.screenY - p3.screenY) * (minX- p3.screenX) + (p3.screenX - p2.screenX) * (minY - p3.screenY)) /b1Denominator;
-	var b1ChangeOnYInc = (p3.screenX - p2.screenX)/b1Denominator;
-	var b1ChangeOnXInc = (p2.screenY - p3.screenY)/b1Denominator;
-	var b2 = ((p3.screenY - p1.screenY) * (minX - p3.screenX) + (p1.screenX - p3.screenX) * (minY - p3.screenY))/b2Denominator;
-	var b2ChangeOnYInc = (p1.screenX-p3.screenX)/b2Denominator;
-	var b2ChangeOnXInc = (p3.screenY-p1.screenY)/b2Denominator;			//var b1 = ((p2.screenY - p3.screenY) * (x - p3.screenX) + (p3.screenX - p2.screenX) * (y - p3.screenY)) / b1Denominator;
-			//var b2 = ((p3.screenY - p1.screenY) * (x - p3.screenX) + (p1.screenX - p3.screenX) * (y - p3.screenY)) / b2Denominator;
+	var b1 = ((p2.screenY - p3.screenY) * (maxX- p3.screenX) + (p3.screenX - p2.screenX) * (maxY - p3.screenY)) /b1Denominator;
+	var b1ChangeOnYDec = (p2.screenX- p3.screenX )/b1Denominator;
+	var b1ChangeOnXDec = (p3.screenY - p2.screenY)/b1Denominator;
+	var b2 = ((p3.screenY - p1.screenY) * (maxX - p3.screenX) + (p1.screenX - p3.screenX) * (maxY - p3.screenY))/b2Denominator;
+	var b2ChangeOnYDec = (p3.screenX-p1.screenX)/b2Denominator;
+	var b2ChangeOnXDec = (p1.screenY-p3.screenY)/b2Denominator;	
 	
-	for(var x = minX; x < maxX; x++) {
-		for(var y = minY; y < maxY; y++) {
+	var xSpan = maxX-minX+1;
+	var ySpan = maxY-minY;
+	
+	//for(var x = maxX; x >minX; x--) {
+	for(var i = xSpan; i--;){
+		var x = i+minX;
+		//for(var y = minY; y < maxY; y++) {
+		for(var j = ySpan; j--;){
+			var y = j+minY;
 			var b3 = 1 - b1 - b2;
 			if(b1 >= 0 && b2 >= 0 && b3 >= 0) {
 				var index = y * canvHeight * 4 + x * 4;
@@ -203,12 +226,12 @@ Renderer.prototype.drawTriangle = function(p1, p2, p3){
 					depthMap[depthIndex] = depth;
 				}
 			}
-			b1 += b1ChangeOnYInc;
-			b2 += b2ChangeOnYInc;
+			b1 += b1ChangeOnYDec;
+			b2 += b2ChangeOnYDec;
 		}
-		b1 -= (b1ChangeOnYInc * (maxY-minY));
-		b2 -= (b2ChangeOnYInc * (maxY-minY));
-		b1 += b1ChangeOnXInc;
-		b2 += b2ChangeOnXInc;
+		b1 -= (b1ChangeOnYDec * (maxY-minY));
+		b2 -= (b2ChangeOnYDec * (maxY-minY));
+		b1 += b1ChangeOnXDec;
+		b2 += b2ChangeOnXDec;
 	}
 }
