@@ -119,6 +119,24 @@ Scenes.sphereTexture = {
 	title:"Textured earth",
 	description:"The earth is round. Images are not. Force them to be so against their will. ",
 	drawUpdate: "(function() {\n\
+	R.setFragmentShader(textureFragShader);\n\
+	var earthWidth = 400;\n\
+	var earthHeight = 200;\n\
+	function textureFragShader(R,pt,uniform){\n\
+		var texCoordX = Math.floor((pt.theta/(2*Math.PI)) * earthWidth);\n\
+		var texCoordY = Math.floor(((pt.phi + Math.PI/2)/Math.PI) * earthHeight);\n\
+		var dataOffset = earthWidth*4*texCoordY + 4*texCoordX;\n\
+		pt.r = earthTexture[dataOffset];\n\
+		pt.g = earthTexture[dataOffset+1];\n\
+		pt.b = earthTexture[dataOffset+2];\n\
+	}\n\
+	earthTexture.src = 'http://www.shadedrelief.com/natural3/images/no_ice_clouds.jpg';\n\
+	function pointFromPolar(theta,phi,r){\n\
+		var y = r*Math.sin(phi);\n\
+		var x = r*Math.cos(phi)*Math.cos(theta);\n\
+		var z = r*Math.cos(phi)*Math.sin(theta);\n\
+		return {x:x,y:y,z:z,theta:theta,phi:phi};\n\
+	}\n\
 	var yRot = 0;\n\
 	var xRot = 0;\n\
 	function pointFromPolar(theta,phi,r){\n\
@@ -167,7 +185,7 @@ Scenes.sphereTexture = {
 		pt.g = (pt.phi%1)*255;\n\
 		pt.b = 0;\n\
 	}\n\
-	R.setFragmentShader(fragShader);\n\
+	//R.setFragmentShader(fragShader);\n\
 	var spherePts = getSpherePoints(.3,6,6);\n\
 	var draw = function(){\n\
 		yRot -= Number(KeysDown[KeyCodes.LEFT])*.05;\n\
