@@ -1,0 +1,185 @@
+<html>
+	<head>
+		<script src="CodeMirror/lib/codemirror.js"></script>
+		<link rel="stylesheet" href="CodeMirror/lib/codemirror.css">
+		<script src="CodeMirror/mode/javascript/javascript.js"></script>
+		<script src="Matrix.js"></script>
+		<script src="Renderer.js"></script>
+		<script src="Utility.js"></script>
+		<script src="Scenes.js"></script>
+		<script src="earthjson.js"></script>
+		<script>
+			var frames = 0;
+			var KeysDown = {};
+			var KeyCodes = {}
+			var drawInterval;
+			var codeWindow;
+			function onLoad() {
+				canvas = document.getElementById("mycanvas");
+				R = new Renderer(canvas);
+				
+				codeWindow = CodeMirror.fromTextArea(document.getElementById("codearea"),
+					{
+						value:"var a = 3;",
+						lineNumbers:true
+					}
+			);
+
+				loadKeyCodes();
+				loadScenes();
+				
+				canvas.addEventListener('mousemove',canvasMouseMove);
+				window.addEventListener('keydown',onKeyDown);
+				window.addEventListener('keyup', onKeyUp);
+				window.setInterval(updateFrames,1000);
+				var sceneSelect = document.getElementById("sceneselect");
+				sceneSelect.addEventListener("change",onSceneChange);
+				var reloadButton = document.getElementById("reloadbutton");
+				reloadButton.addEventListener("click",reloadClick);
+			}
+
+			function loadKeyCodes(){
+				KeyCodes.UP = 38;
+				KeyCodes.DOWN = 40;
+				KeyCodes.LEFT = 37;
+				KeyCodes.RIGHT = 39;
+				for(var i = 'A'.charCodeAt(0); i<='Z'.charCodeAt(0); i++){
+					KeyCodes[String.fromCharCode(i)] = i;
+				}
+				for(var i = '0'.charCodeAt(0); i<= '9'.charCodeAt(0); i++){
+					KeyCodes[String.fromCharCode(i)] = i;
+				}
+				for(var i =0; i<256; i++){
+					KeysDown[i] = false;
+				}
+			}
+
+			function loadScenes(){
+				var firstScene;		
+				var sceneSelect = document.getElementById("sceneselect");	
+				var len = 0;	
+				for(idx in Scenes){
+					var scene = Scenes[idx];
+					var sceneOpt = new Option();
+					sceneOpt.text = scene.title;
+					sceneOpt.value = idx;
+					sceneSelect.add(sceneOpt);
+					firstScene = scene;
+					len++;
+				}
+				sceneSelect.selectedIndex = len-1;
+				loadScene(firstScene);	
+			
+			}
+
+			function loadScene(scene){
+				//set the defaults back from whatever the scene set
+				R.restoreDefaults();
+				R.clear();
+				
+				document.getElementById("description").innerHTML = scene.description;
+				loadSceneCode(scene.drawUpdate);
+				
+			}
+			
+			function loadSceneCode(code){
+				var drawUpdateFunc;
+				if(typeof(code) === 'function'){
+					codeWindow.setValue(String(code));
+					drawUpdateFunc = code;
+				}
+				else{
+					try{
+						drawUpdateFunc = eval(code);
+					}
+					catch(ex){
+						alert("Function evaluation failed\n\n " + ex);
+						return;
+					}
+					codeWindow.setValue(code);
+				}
+				
+				window.clearInterval(drawInterval);
+				drawInterval = window.setInterval(function(){
+					frames++;
+					drawUpdateFunc();
+				},1);
+			}
+			
+			function reloadClick(evt){
+				loadSceneCode(codeWindow.getValue());
+			}
+			
+			function onSceneChange(evt){
+				var scene = this.options[this.selectedIndex].value;
+				loadScene(Scenes[scene]);
+			}
+
+			function onKeyDown(evt){
+				KeysDown[evt.keyCode] = true;
+				evt.stopPropagation;
+			}
+
+			function onKeyUp(evt){
+				KeysDown[evt.keyCode] = false;
+				evt.stopPropagation();
+			}
+
+			function loadShaderClick(evt){
+				var fshader = document.getElementById("fragshader");
+				eval ("var frag = " + fshader.value);
+				R.setFragmentShader(frag);
+			}
+
+			function updateFrames(evt){
+				var frameRate = document.getElementById("framerate");
+				frameRate.value = "Frame rate: " + frames;
+				frames = 0;
+			}
+
+			function findPos(obj) {
+				var curleft = 0, curtop = 0;
+				if(obj.offsetParent) {
+					do {
+						curleft += obj.offsetLeft;
+						curtop += obj.offsetTop;
+					} while (obj = obj.offsetParent);
+					return {
+						x : curleft,
+						y : curtop
+					};
+				}
+				return undefined;
+			}
+			
+			function canvasMouseMove(evt){
+				var coord = document.getElementById("coordinate");
+				var canvasPos = findPos(R.canvas);
+				coord.value = "Position:" + (evt.pageX-canvasPos.x) + "," + (evt.pageY-canvasPos.y);
+			}
+			
+			window.addEventListener('load', onLoad);
+
+		</script>
+	</head>
+	<body>
+		<div>
+			<div style="width:500px; float:left;">
+				<canvas style="border:1px solid green" id="mycanvas" width="500" height="500"></canvas>
+				<br/>
+				<input type="text" id="coordinate" style="width:160px;"></input>
+				<input type="text" id="framerate" style="width:160px;"></input>
+				<select id="sceneselect"></select>
+			</div>
+			<div style="margin-left:510px;width:600px; height:500px; border:1px solid green">
+				<p style="color:#FD971F">Scene Description: </p>
+				<p id="description"></p>
+				<p style="color:#FD971F">Code (Try Editing and Reloading!):</p>
+				<textarea id="codearea" style="width:500px; height:100%;"></textarea>
+				<br/>
+				<input id ="reloadbutton" type="button" value="Reload"/>
+			</div>
+		</div>
+		
+	</body>
+</html>
