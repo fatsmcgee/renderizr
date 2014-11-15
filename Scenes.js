@@ -117,7 +117,7 @@ Scenes.simpleTriangle = {
 }
 Scenes.sphereTexture = {
 	title:"Textured earth",
-	description:"The earth is round. Images are not. Force them to be so against their will. ",
+	description:"The earth is round. Images are not. Force them to be so against their will. Press left/right or up/down rotate the earth on its axis.",
 	drawUpdate: "(function() {\n\
 	R.setFragmentShader(textureFragShader);\n\
 	var earthWidth = 400;\n\
